@@ -13,4 +13,6 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::get('/', 'RestaurantsController@searchForRestaurant');
+Route::get('/', 'RestaurantsController@showSearchForm');
+
+Route::get('/search', 'RestaurantsController@searchForRestaurants');

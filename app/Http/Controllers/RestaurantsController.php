@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Repositories\Restaurant\RestaurantRepositoryInterface;
+use App\Http\Requests\SearchMealsRequest;
 
 class RestaurantsController extends Controller
 {
@@ -14,17 +15,19 @@ class RestaurantsController extends Controller
         $this->restaurantRepository = $restaurantRepository;
     }
 
-    public function searchForRestaurant()
+    public function showSearchForm()
+    {
+        return view("search");
+    }
+
+    public function searchForRestaurants(SearchMealsRequest $request)
     {   
-        //return $this->restaurantRepository->maxDistanceOfRestaurants("meal",30.012647,31.210113);
-
-        //return $this->restaurantRepository->maxSuccessfulOrdersForRestaurants("meal");
-
-        //return $this->restaurantRepository->maxCustomerRecommendationCountForRestaurants("meal");
         
-        //return $this->restaurantRepository->maxCustomerMealRecommendationCountForRestaurants("meal");
+        list($lat,$lan) = explode(',',$request->map_coordinates);
+    
+        $restaurants = $this->restaurantRepository->searchForMeal($request->meal_name,$lat,$lan);
 
-        return $this->restaurantRepository->searchForMeal("meal tt",30.012647,31.210113);
+        return view('search',compact('restaurants'));
     }
 
 }
