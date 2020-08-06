@@ -28,7 +28,7 @@ class RestaurantRepository implements RestaurantRepositoryInterface
         $query = $this->joinMeals($query);
         $query = $this->searchMeals($query,$mealName);
         $distanceRaw = $query->orderBy('distance','DESC')->limit(1)->first();
-        return ($distanceRaw->distance)?$distanceRaw->distance:0;
+        return isset($distanceRaw->distance)?$distanceRaw->distance:false;
     }
 
 
@@ -38,7 +38,8 @@ class RestaurantRepository implements RestaurantRepositoryInterface
         $query = $this->joinMeals($query);
         $query = $this->searchMeals($query,$mealName);
         $maxSuccessfulOrdersRaw = $query->orderBy('maxSuccessfulOrdersCount','DESC')->limit(1)->first();
-        return $maxSuccessfulOrdersRaw->maxSuccessfulOrdersCount;
+        return isset($maxSuccessfulOrdersRaw->maxSuccessfulOrdersCount)?
+        $maxSuccessfulOrdersRaw->maxSuccessfulOrdersCount:false;
     }
 
     public function maxCustomerRecommendationCountForRestaurants(string $mealName):int{
@@ -47,7 +48,8 @@ class RestaurantRepository implements RestaurantRepositoryInterface
         $query = $this->joinMeals($query);
         $query = $this->searchMeals($query,$mealName);
         $maxCustomerRecommendationRaw = $query->orderBy('maxCustomerRecommendationCount','DESC')->limit(1)->first();
-        return $maxCustomerRecommendationRaw->maxCustomerRecommendationCount;
+        return isset($maxCustomerRecommendationRaw->maxCustomerRecommendationCount)?
+        $maxCustomerRecommendationRaw->maxCustomerRecommendationCount:false;
     }
 
 
@@ -61,7 +63,8 @@ class RestaurantRepository implements RestaurantRepositoryInterface
         $query = $this->joinMeals($query);
         $query = $this->searchMeals($query,$mealName);
         $maxCustomerMealRecommendationRaw = $query->orderBy('maxCustomerMealRecommendationCount','DESC')->limit(1)->first();
-        return $maxCustomerMealRecommendationRaw->maxCustomerMealRecommendationCount;
+        return isset($maxCustomerMealRecommendationRaw->maxCustomerMealRecommendationCount)?
+        $maxCustomerMealRecommendationRaw->maxCustomerMealRecommendationCount:false;
     }
 
     public function searchForMeal(string $mealName,float $latitude, float $longitude,int $limit = 3)
@@ -73,6 +76,14 @@ class RestaurantRepository implements RestaurantRepositoryInterface
         $maxCustomerRecommendationCount = $this->maxCustomerRecommendationCountForRestaurants($mealName);
 
         $maxCustomerMealRecommendationCount = $this->maxCustomerMealRecommendationCountForRestaurants($mealName);
+        
+        $validRanks = $this->isValidRankParameters([$maxDistance,
+        $maxSuccessfulOrders,
+        $maxCustomerRecommendationCount,
+        $maxCustomerMealRecommendationCount]);
+         
+        // need to be updated to handle each parameter sepritly 
+        if(!$validRanks) return collect([]);
 
         $query = \DB::raw("
             select
@@ -139,5 +150,13 @@ class RestaurantRepository implements RestaurantRepositoryInterface
 
     private function searchMeals($query, string $mealName){
         return $query->where('meal_name', 'like', '%' . $mealName . '%');
+    }
+
+    private function isValidRankParameters(array $parameters):bool
+    {
+        foreach ($parameters as $parameter) {
+            if($parameter === false) return false;
+        }
+        return true;
     }
 }

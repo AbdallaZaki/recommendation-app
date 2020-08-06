@@ -43,7 +43,7 @@ class AddRestaurantsAndMealSeeder extends Seeder
         for ($i=0; $i < 10; $i++) {
 
             $meal = [
-                'meal_name' => "meal ".chr(rand(97,122)).rand(100,1000),              
+                'meal_name' => "meal ".chr(rand(97,122)).chr(rand(97,122)).chr(rand(97,122)),              
             ];
             
             $meals[] = Meal::create($meal);
