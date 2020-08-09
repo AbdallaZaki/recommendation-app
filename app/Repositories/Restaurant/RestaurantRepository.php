@@ -103,12 +103,6 @@ class RestaurantRepository implements RestaurantRepositoryInterface
     
     }
 
-    private function joinMeals($query)
-    {
-        return $query->join('meal_restaurant','restaurant_id','=','restaurants.id')
-        ->join('meals','meal_id','=','meals.id');
-    }
-
     private function searchMeals($query, string $mealName){
         return $query->whereHas('meals',function($builder) use($mealName){
             $builder->where('meal_name', 'like', '%' . $mealName . '%');
