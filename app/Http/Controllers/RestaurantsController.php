@@ -17,12 +17,7 @@ class RestaurantsController extends Controller
 
     public function showSearchForm()
     {
-        //return view("search");
-        //return $this->restaurantRepository->maxDistanceOfRestaurants('meal',30.012647,31.210113);
-        //return $this->restaurantRepository->maxSuccessfulOrdersForRestaurants('meal');
-        //return $this->restaurantRepository->maxCustomerRecommendationCountForRestaurants('meal z');
-        //return $this->restaurantRepository->maxCustomerMealRecommendationCountForRestaurants('meal z');
-        return $this->restaurantRepository->searchForMeal('meal z',30.012647,31.210113);
+        return view("search");
     }
 
     public function searchForRestaurants(SearchMealsRequest $request)
