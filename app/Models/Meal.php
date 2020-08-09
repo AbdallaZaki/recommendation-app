@@ -16,6 +16,6 @@ class Meal extends Model
      */
     public function restaurant()
     {
-        return $this->hasMany(Restaurant::class);
+        return $this->belongsToMany(Restaurant::class);
     }
 }
