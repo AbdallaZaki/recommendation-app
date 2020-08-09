@@ -20,6 +20,6 @@ class Restaurant extends Model
      */
     public function meals()
     {
-        return $this->belongsToMany(Meal::class);
+        return $this->belongsToMany(Meal::class)->withPivot('meal_recommendation_count');
     }
 }

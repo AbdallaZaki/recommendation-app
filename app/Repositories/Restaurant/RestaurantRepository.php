@@ -3,6 +3,7 @@
 namespace App\Repositories\Restaurant;
 
 use App\Models\Restaurant;
+use App\Models\MealRestaurant;
 use App\Repositories\Restaurant\RestaurantRepositoryInterface;
 
 class RestaurantRepository implements RestaurantRepositoryInterface
@@ -25,8 +26,7 @@ class RestaurantRepository implements RestaurantRepositoryInterface
     public function maxDistanceOfRestaurants(string $mealName,float $latitude, float $longitude):float{
         
         $query = $this->model->select(\DB::raw("getDistance({$latitude},{$longitude},latitude,longitude) as distance"));
-        $query = $this->joinMeals($query);
-        $query = $this->searchMeals($query,$mealName);
+        $query = $this->searchMeals($query, $mealName);
         $distanceRaw = $query->orderBy('distance','DESC')->limit(1)->first();
         return isset($distanceRaw->distance)?$distanceRaw->distance:false;
     }
@@ -34,37 +34,26 @@ class RestaurantRepository implements RestaurantRepositoryInterface
 
     public function maxSuccessfulOrdersForRestaurants(string $mealName):int{
         
-        $query = $this->model->select(\DB::raw("max(successful_orders) as maxSuccessfulOrdersCount"));
-        $query = $this->joinMeals($query);
-        $query = $this->searchMeals($query,$mealName);
-        $maxSuccessfulOrdersRaw = $query->orderBy('maxSuccessfulOrdersCount','DESC')->limit(1)->first();
-        return isset($maxSuccessfulOrdersRaw->maxSuccessfulOrdersCount)?
-        $maxSuccessfulOrdersRaw->maxSuccessfulOrdersCount:false;
+        $query = $this->searchMeals($this->model,$mealName);
+        $maxSuccessfulOrders = $query->max('successful_orders');
+        return $maxSuccessfulOrders?$maxSuccessfulOrders:false;
     }
 
     public function maxCustomerRecommendationCountForRestaurants(string $mealName):int{
         
-        $query = $this->model->select(\DB::raw("max(customer_recommendation_count) as maxCustomerRecommendationCount "));
-        $query = $this->joinMeals($query);
-        $query = $this->searchMeals($query,$mealName);
-        $maxCustomerRecommendationRaw = $query->orderBy('maxCustomerRecommendationCount','DESC')->limit(1)->first();
-        return isset($maxCustomerRecommendationRaw->maxCustomerRecommendationCount)?
-        $maxCustomerRecommendationRaw->maxCustomerRecommendationCount:false;
+        $query = $this->searchMeals($this->model,$mealName);
+        $maxCustomerRecommendation = $query->max('customer_recommendation_count');
+        return $maxCustomerRecommendation?$maxCustomerRecommendation:false;
     }
 
 
     public function maxCustomerMealRecommendationCountForRestaurants(string $mealName):int{
         
-        $query = $this->model->select(\DB::raw("
-        max((select meal_recommendation_count from meal_restaurant
-        where meal_restaurant.meal_id = meals.id 
-        and restaurants.id = meal_restaurant.restaurant_id  ) ) as 
-        maxCustomerMealRecommendationCount"));
-        $query = $this->joinMeals($query);
-        $query = $this->searchMeals($query,$mealName);
-        $maxCustomerMealRecommendationRaw = $query->orderBy('maxCustomerMealRecommendationCount','DESC')->limit(1)->first();
-        return isset($maxCustomerMealRecommendationRaw->maxCustomerMealRecommendationCount)?
-        $maxCustomerMealRecommendationRaw->maxCustomerMealRecommendationCount:false;
+        $query = MealRestaurant::whereHas('meal',function($builder) use($mealName){
+            $builder->where('meal_name', 'like', '%' . $mealName . '%');
+        });
+        $maxCustomerMealRecommendation = $query->max('meal_recommendation_count');
+        return $maxCustomerMealRecommendation?$maxCustomerMealRecommendation:false;
     }
 
     public function searchForMeal(string $mealName,float $latitude, float $longitude,int $limit = 3)
@@ -85,61 +74,33 @@ class RestaurantRepository implements RestaurantRepositoryInterface
         // need to be updated to handle each parameter sepritly 
         if(!$validRanks) return collect([]);
 
-        $query = \DB::raw("
-            select
-            id,
-            avg(customer_meal_recommendation_count_rank) as customer_meal_recommendation_count_rank,
-            dist_rank,
-            successful_orders_rank,
-            customer_recommendation_count_rank,
-            restaurant_name 
-            from
-                (
-                select
-            ( (1 - (getDistance({$latitude},{$longitude}, latitude, longitude) / {$maxDistance}))*{$this->distanceWeight}) as dist_rank,
-                    (
-            (successful_orders / {$maxSuccessfulOrders})*{$this->successfulOrdersWeight} 
-                    )
-                    as successful_orders_rank,
-                    (
-            (customer_recommendation_count / {$maxCustomerRecommendationCount})*{$this->customerRecommendationCountWeight} 
-                    )
-                    as customer_recommendation_count_rank,
-                    (
-            (( 
-                    select
-                        meal_recommendation_count 
-                    from
-                        meal_restaurant 
-                    where
-                        meal_restaurant.meal_id = meals.id 
-                        and meal_restaurant.restaurant_id = `restaurants`.`id` ) / {$maxCustomerMealRecommendationCount}) * {$this->customerMealRecommendationCountWeight}
-                )
-                as customer_meal_recommendation_count_rank,
-                restaurants.* 
-            from
-                `restaurants` 
-                inner join
-                    `meal_restaurant` 
-                    on `restaurants`.`id` = `meal_restaurant`.`restaurant_id` 
-                inner join
-                    `meals` 
-                    on `meal_id` = `meals`.`id` 
-            where
-                `meal_name` like '%{$mealName}%'
-            )
-            as restaurants_data
+        $customerMealRecommendationCountWeight= $this->customerMealRecommendationCountWeight;
 
-            group by id 
-            order by
-            dist_rank + 
-            successful_orders_rank + 
-            customer_recommendation_count_rank + 
-            customer_meal_recommendation_count_rank DESC limit {$limit};
+        $selectQueries = [
+            \DB::raw("( (1 - (getDistance({$latitude},{$longitude}, latitude, longitude) / {$maxDistance}))*{$this->distanceWeight}) as dist_rank"),
+            \DB::raw("((successful_orders / {$maxSuccessfulOrders})*{$this->successfulOrdersWeight}) as successful_orders_rank"),
+            \DB::raw("((customer_recommendation_count / {$maxCustomerRecommendationCount})*{$this->customerRecommendationCountWeight} ) as customer_recommendation_count_rank"),
+            \DB::raw("restaurants.*"),
             
-        ");
+        ];
         
-        return \DB::select($query);
+        $query = $this->model->select($selectQueries);
+        $query->addSelect(['customer_meal_recommendation_count_rank' => function ($subQuery) use($mealName,$maxCustomerMealRecommendationCount,$customerMealRecommendationCountWeight) {
+            $subQuery->select(\DB::raw("((avg(meal_recommendation_count)/{$maxCustomerMealRecommendationCount})*{$customerMealRecommendationCountWeight})"))
+            ->from('meal_restaurant')
+            ->join('meals','meal_id','=','meals.id')
+            ->where('meal_name', 'like', '%' . $mealName . '%')
+            ->whereColumn('meal_restaurant.meal_id', 'meals.id')
+            ->whereColumn('meal_restaurant.restaurant_id', 'restaurants.id');
+               
+        }]);
+        $query = $this->searchMeals($query,$mealName);
+        $query = $query->orderByRaw(" dist_rank + 
+        successful_orders_rank + 
+        customer_recommendation_count_rank+
+        customer_meal_recommendation_count_rank  DESC");
+        return $query->limit($limit)->get();
+    
     }
 
     private function joinMeals($query)
@@ -149,7 +110,9 @@ class RestaurantRepository implements RestaurantRepositoryInterface
     }
 
     private function searchMeals($query, string $mealName){
-        return $query->where('meal_name', 'like', '%' . $mealName . '%');
+        return $query->whereHas('meals',function($builder) use($mealName){
+            $builder->where('meal_name', 'like', '%' . $mealName . '%');
+        });
     }
 
     private function isValidRankParameters(array $parameters):bool
